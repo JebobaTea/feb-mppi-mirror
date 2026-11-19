@@ -1,0 +1,60 @@
+"""Parameters of the racing half (raceline, speed plan, MPC), with the reason for each value.
+Kept free of ROS so the offline bench reads the same defaults as the node."""
+from .vehicle import ACT_DELAY, MAX_STEER
+
+RACE = dict(
+    # raceline
+    sample_step=0.25,         # m between raceline points
+    curv_window=0.75,         # m of raceline the signed curvature is averaged over before it limits the speed:
+                              # enough to drop point-to-point noise, short enough to keep a corner's peak (over
+                              # 2 m the loop's plan asked 5.5 m/s^2 of the tyres where it meant 4.5)
+    car_half_width=0.135,
+    car_front_overhang=0.100,
+    car_rear_overhang=0.100,
+    margin=0.7,               # m kept from the cones beyond the car's half width
+    curvature_reg=0.01,
+    # speed plan: what the tyres are asked for. Measured limits are 6.3 m/s^2 sideways and a
+    # tyre force of 5.4 m/s^2 along the car that is there even when the tyre slides
+    v_max=7.0,                # m/s. 5.9 and 7.0 were each run over all seventeen cone tracks: both clean, 7.0 is 3 to 12% faster
+    a_lat=5.0,
+    a_acc=4.6,
+    a_brake=4.6,
+    race_speed_scale=1.0,     # scales v_max; an organiser's knob for a slower field
+    corner_scale=1.0,         # scales corner speed (so squared on a_lat)
+    # mpc
+    mpc_horizon=12,           # stages of mpc_dt: 1.2 s of plan
+    mpc_dt=0.1,
+    mpc_substeps=2,
+    mpc_max_iter=100,
+    mpc_a_acc=5.4,            # m/s^2 of tyre force the optimiser may ask for, driving and braking
+    mpc_a_brake=5.4,
+    mpc_a_lat=5.8,            # m/s^2 of cornering it may plan (soft)
+    mpc_steer_rate=2.9,       # rad/s, nine tenths of the servo's
+    # MPPI parameters
+    mppi_horizon=32,
+    mppi_dt=0.05,
+    mppi_num_samples=2048,
+    mppi_temperature=3.5,
+    mppi_accel_sigma=1.5,
+    mppi_steer_sigma=0.35,
+    mppi_beta=0.85,
+    w_progress=6.0,
+    w_contour=8.0,
+    w_heading=15.0,
+    w_speed=10.0,
+    w_accel=25.0,
+    w_effort=0.5,
+    w_effort_omega=5.0, # FIXME: align .yaml defaults with this stuff in here
+    w_domega=2.0,
+    w_collision=2000.0,
+    w_collision_hard=100000.0,
+    w_boundary=100000.0,
+    collision_margin=0.2,
+    max_a_net=5.8,            # m/s^2 friction circle ceiling (grounded in mpc_a_lat=5.8 and LAT_PEAK in vehicle.py)
+    max_steer=MAX_STEER,
+    v_cap=12.0,               # m/s ceiling on the planned speed; lowered at startup to v_max plus a margin
+    act_delay=ACT_DELAY,
+    throttle_min=0.02,        # never zero while racing: zero locks the wheels
+    throttle_max=0.45,        # 11 m/s of wheel speed
+    pursuit_lookahead=0.9,
+)

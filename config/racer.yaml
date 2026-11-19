@@ -1,0 +1,77 @@
+# Cone racer parameters. Defaults and the reason for each: racer.py (mapping) and params.py (racing).
+racer:
+  ros__parameters:
+    # camera: HSV bounds (h_lo, s_lo, v_lo, h_hi, s_hi, v_hi) and the image band where cones live,
+    # calibrated on this car against ground truth; the scene is dark, so value floors are low
+    hsv_blue: [105, 220, 8, 135, 255, 255]
+    hsv_yellow: [18, 150, 8, 40, 255, 255]
+    hsv_orange: [0, 150, 15, 15, 255, 255]
+    band_top: 0.20            # fraction of image height; rows above are sky
+    band_bottom: 0.36         # rows below are the car's own body
+    band_floor: 0.21          # a blob that ends above this is sky
+    orange_min_px: 35         # smaller orange-hued blobs are shaded yellow cones
+    min_blob_px: 3
+    blob_min_value: 25        # mean HSV value of a blob's pixels; darker specks on the ground are not cones
+    match_px_frac: 0.04       # a lidar cone takes a blob's colour only within this fraction of the width
+    # lap 1: the mapping lap, driven by the simple follower
+    map_speed: 2.2
+    map_min_speed: 0.8
+    speed_tau: 0.8            # s; the mapping lap slows at once but speeds up over this, so the car does not lurch when the known path ahead jumps
+    recover_for: 8.0          # s the mapping lap may spend turning back towards the cones after losing sight of
+                              # them, driving forwards; after that it stops, since it may not reverse
+    lookahead: 1.0
+    follow_range: 3.5         # m; the reactive follower chains only the cones this near (their colours are reliable, far ones are not)
+    local_path_lookahead: 1.4   # m, pure-pursuit target along the live cone ordering's local path on lap one
+    local_path_min_reach: 2.0 # m of trusted path ahead before lap one follows it; shorter, the reactive follower drives
+    rung_max_age: 1.0         # s; older rungs hand lap one back to the reactive follower
+    # slam
+    keyframe_dist: 0.4        # m between graph poses
+    slam_range: 6.0           # m; cones farther than this are not used for the map
+    loc_corridor: 2.5         # m; while racing, only landmarks this close to the car's stretch of raceline are matched (adjacent track sections)
+    new_landmark_dist: 0.6    # m; a cone farther than this from every known cone of its colour is new
+    min_lap_length: 15.0      # m travelled before the car may declare the lap closed
+    closure_landmarks: 10     # seeing three of the first ten cones again (after 35 m) closes the loop whatever the drift
+    order_timeout: 10.0       # s to wait for the team's cone ordering (feb_cone_ordering) before the boundary walk takes over
+    lap_close_dist: 2.0       # m from the start pose that closes the lap
+    # racing: where the car is. The speed comes from the wheels through the measured tyre curve;
+    # the position from dead reckoning, corrected each scan against the map
+    loc_gain_along: 0.3       # share of the map match's correction taken along the car's heading, per scan
+    loc_gain_across: 0.5      # and across it. Cones line the track, so a match pins the car across it better than along it
+    loc_max_step: 0.25        # m, the most one scan may move the estimate
+    lost_after: 1.5           # s without cones in view or a map match before the plan is slowed to blind_speed
+    blind_speed: 0.5
+    give_up_after: 8.0        # s of that before the car stops
+    pin_turn: 0.8             # rad the raceline turns from the race start before racing pace: the first corner pins the car along the track
+    # racing: the raceline and the speed plan. What the tyres are asked for, against what was measured on
+    # this car (tools/dynid.py): 6.3 m/s^2 sideways, and 5.4 m/s^2 along the car even with the tyre sliding
+    margin: 0.7               # m kept from the cones beyond the car's half width
+    v_max: 7.0                # m/s; 5.9 and 7.0 both ran all seventeen tracks clean
+    a_lat: 5.0                # m/s^2 of cornering planned
+    a_acc: 4.6                # m/s^2 of tyre force planned, driving
+    a_brake: 4.6              # and braking
+    race_speed_scale: 1.0     # scales v_max: an organiser's knob for a slower field, not a fix for anything
+    corner_scale: 1.0         # scales corner speed
+    # racing: the MPPI controller. Parameters and weights are in mppi_cone_racer/params.py
+    mppi_horizon: 24
+    mppi_dt: 0.05
+    mppi_num_samples: 512
+    mppi_temperature: 5.0
+    mppi_steer_sigma: 0.35
+    mppi_accel_sigma: 1.5
+    mppi_beta: 0.85
+    w_progress: 24.0
+    w_contour: 8.0
+    w_heading: 2.0
+    w_speed: 10.0
+    w_accel: 15.0
+    max_a_net: 6.2
+    w_effort: 0.0
+    w_effort_omega: 0.0
+    w_domega: 0.0
+    w_collision: 2000.0
+    w_collision_hard: 100000.0
+    w_boundary: 100000.0
+    collision_margin: 0.15
+    push_throttle: 0.16       # not moving with the throttle on: push this hard for 1.5 s before giving up (a cone under the bumper)
+    throttle_start: 0.07      # the least throttle that gets the car rolling from rest
+    debug: false              # log every lap-one steering decision (which follower, target, reach)
