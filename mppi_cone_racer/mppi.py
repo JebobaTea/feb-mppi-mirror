@@ -9,7 +9,7 @@ from .halfspaceutils import generate_rectangular_halfspaces
 from .vehicle import AXLE_TO_CENTRE, CORNER_DRAG, DRAG, MAX_STEER, STEER_RATE, WHEELBASE, AXLE_TO_LIDAR
 
 # FIXME: should NOT be a magic number, should be a config option
-M_MAX_CONES = 32  # unfuck JAX kernel with static obstruction array dimensions
+M_MAX_CONES = 16  # unfuck JAX kernel with static obstruction array dimensions
 
 class OUContourKinematicMPPI:
     def __init__(self, p=None):
@@ -102,11 +102,11 @@ class OUContourKinematicMPPI:
                 pts = pts[:, :2]
 
         seg = np.linalg.norm(np.roll(pts, -1, axis=0) - pts, axis=1)
-        total_length = float(np.sum(seg))
+        total_length = float(np.sum(seg)) # perimeter calculation
         s_cum = np.concatenate([[0.0], np.cumsum(seg)])
         pts_closed = np.vstack([pts, pts[0:1]])
 
-        num_pts = max(int(total_length / 0.1), 32)
+        num_pts = max(int(total_length / 0.1), 32) # XXX: s_grid ds is ostensibly hardcoded here...
         s_grid = np.linspace(0.0, total_length, num_pts, endpoint=False)
         x_grid = np.interp(s_grid, s_cum, pts_closed[:, 0])
         y_grid = np.interp(s_grid, s_cum, pts_closed[:, 1])
@@ -155,7 +155,7 @@ class OUContourKinematicMPPI:
         dphi = np.arctan2(np.sin(np.roll(headings, -1) - headings),
                           np.cos(np.roll(headings, -1) - headings))
         ds = total_length / num_pts
-        curvatures = np.clip(dphi / ds, -1.5, 1.5)
+        curvatures = np.clip(dphi / ds, -1.5, 1.5) # XXX: why?
 
         self.track_len = total_length
         self.s_table = jnp.array(s_grid)
@@ -309,7 +309,27 @@ def mppi_step_kernel(state, nominal_ctrl, key,
     max_ctrl = jnp.array([u_max[0], u_max[1]])  # [accel, steer_rate]
     all_clipped_ctrl = jnp.clip(all_perturbed, min_ctrl, max_ctrl)
 
-    costs = jax.vmap(lambda u: rollout_cost_frenet(state, u, line_tables, wheelbase, dt,
+    # locate anchor waypoint in cartesian tables
+    cx0 = state[0] + AXLE_TO_CENTRE * jnp.cos(state[2])
+    cy0 = state[1] + AXLE_TO_CENTRE * jnp.sin(state[2])
+    base_idx = jnp.argmin((line_tables[1] - cx0) ** 2 + (line_tables[2] - cy0) ** 2)
+
+    # restrict search area for each cartesian to frenet conversion call (16 waypoints behind, 112 waypoints ahead)
+    # currently, the order of operations is for each vmapped rollout cost call, updated poses are computed in
+    # cartesian coordinates (obviously), for which we must query the frenet equivalent for to obtain the correct
+    # progress and cross-track error for a certain rollout; each pose's coordinate conversion takes the argmin
+    # using the entire given table, so it is more effective to gather a fixed slice of waypoints we know no
+    # rollout will possibly rocket out of bounds for and use it for every rollout
+    # that is to say, tables ideally should not be gathered within the conversion call...
+    # the window size should be adjusted based on the ds between waypoints and the expected travel distance per rollout
+    N_TRACK = line_tables[0].shape[0]
+    WINDOW_SIZE = 128 # FIXME: move to unified config area, stop leaving levers in random places
+    BACKWARD_MARGIN = 16
+    local_indices = (base_idx - BACKWARD_MARGIN + jnp.arange(WINDOW_SIZE)) % N_TRACK
+    # Slice all tables to static shape (128,)
+    local_line_tables = tuple(table[local_indices] for table in line_tables)
+
+    costs = jax.vmap(lambda u: rollout_cost_frenet(state, u, local_line_tables, wheelbase, dt,
                                                    wheel_limits[0], wheel_limits[1], track_len, cones, A, b,
                                                    w_progress, w_contour, w_heading, w_accel,
                                                    w_effort, w_effort_omega, w_domega,

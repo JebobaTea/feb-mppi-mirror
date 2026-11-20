@@ -85,7 +85,7 @@ class RaceController:
         self.speed_cap = 99.0            # m/s, the most to ask for whatever the plan says (the start of the race)
         self.info = {}
 
-    # XXX: geminislop
+    # XXX: slop
     def set_centerline(self, centerline, half_width=None):
         self.centerline = centerline
         if self.mpc is not None and hasattr(self.mpc, "set_centerline"):
